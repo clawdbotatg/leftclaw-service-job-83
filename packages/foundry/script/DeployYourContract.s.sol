@@ -2,29 +2,22 @@
 pragma solidity ^0.8.19;
 
 import "./DeployHelpers.s.sol";
-import "../contracts/YourContract.sol";
+import { AiPunks } from "../contracts/AiPunks.sol";
 
 /**
- * @notice Deploy script for YourContract contract
- * @dev Inherits ScaffoldETHDeploy which:
- *      - Includes forge-std/Script.sol for deployment
- *      - Includes ScaffoldEthDeployerRunner modifier
- *      - Provides `deployer` variable
- * Example:
- * yarn deploy --file DeployYourContract.s.sol  # local anvil chain
- * yarn deploy --file DeployYourContract.s.sol --network optimism # live network (requires keystore)
+ * @notice Deploy script for AiPunks
+ * @dev Deploys the AiPunks ERC-721 with the LeftClaw job client as initial owner.
+ *      Note: the file name stays `DeployYourContract.s.sol` so that the SE-2
+ *      `yarn deploy` flow continues to find it from `Deploy.s.sol`.
  */
 contract DeployYourContract is ScaffoldETHDeploy {
-    /**
-     * @dev Deployer setup based on `ETH_KEYSTORE_ACCOUNT` in `.env`:
-     *      - "scaffold-eth-default": Uses Anvil's account #9 (0xa0Ee7A142d267C1f36714E4a8F75612F20a79720), no password prompt
-     *      - "scaffold-eth-custom": requires password used while creating keystore
-     *
-     * Note: Must use ScaffoldEthDeployerRunner modifier to:
-     *      - Setup correct `deployer` account and fund it
-     *      - Export contract addresses & ABIs to `nextjs` packages
-     */
+    /// @notice LeftClaw job #83 client — receives ownership and royalties.
+    address internal constant CLIENT_OWNER = 0x68B8dD3d7d5CEdB72B40c4cF3152a175990D4599;
+
+    /// @notice Placeholder baseURI; the owner can update this post-deploy via setBaseURI().
+    string internal constant INITIAL_BASE_URI = "ipfs://placeholder/";
+
     function run() external ScaffoldEthDeployerRunner {
-        new YourContract(deployer);
+        new AiPunks(CLIENT_OWNER, INITIAL_BASE_URI);
     }
 }
