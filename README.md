@@ -1,83 +1,53 @@
-# 🏗 Scaffold-ETH 2
+# Ai Punks
 
-<h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
-</h4>
+10,000 AI-enhanced CryptoPunks. ERC-721 on Base. Powered by `$CLAWD`.
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+- **Live URL:** _TBD — IPFS deploy on Stage 9_
+- **Contract:** [`0xb92632ce19bc7f3e86f672606000f9da31481a93`](https://basescan.org/address/0xb92632ce19bc7f3e86f672606000f9da31481a93) (verified)
+- **Network:** Base (chain id 8453)
+- **Owner / payout:** `0x68B8dD3d7d5CEdB72B40c4cF3152a175990D4599`
 
-> [!NOTE]
-> 🤖 Scaffold-ETH 2 is AI-ready! It has everything agents need to build on Ethereum. Check `.agents/`, `.claude/`, `.opencode` or `.cursor/` for more info.
+## Mint mechanics
 
-⚙️ Built using NextJS, RainbowKit, Foundry, Wagmi, Viem, and Typescript.
+- **Supply:** 10,000.
+- **Mint price:** 0.005 ETH per token.
+- **`$CLAWD`-gated free mints:** the first 2,000 mints are free for wallets holding **≥ $50 worth** of `$CLAWD` (token: [`0x9f86dB9fc6f7c9408e8Fda3Ff8ce4e78ac7a6b07`](https://basescan.org/address/0x9f86dB9fc6f7c9408e8Fda3Ff8ce4e78ac7a6b07)). One free mint per wallet, capped at a 2,000 global pool. The owner publishes the `$CLAWD/USD` price on-chain via `setClawdUsdPrice` (capped at `$1` per `$CLAWD` to bound spend). Free mints are claimed first when a wallet calls `mint(qty)` — `paid = qty - free`. No approvals required: it is pure ETH.
+- **Royalties:** ERC-2981, 5% to the owner (cap 10%).
+- **Reentrancy:** `mint` and `withdraw` are guarded; refunds use `call` with explicit failure reverts.
 
-- ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
-- 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
-- 🧱 [**Components**](https://docs.scaffoldeth.io/components/): Collection of common web3 components to quickly build your frontend.
-- 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
-- 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
+## Architecture decisions
 
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
+- **Owner-set price oracle:** there is no live `$CLAWD/USD` feed on Base. Pulling from a DEX TWAP would mean trusting a single pool that an attacker can manipulate before a mint cycle. We chose an explicit owner-published price, capped at `$1`, so the worst case is the owner griefing themselves (zero free mints) instead of users overpaying.
+- **2k global free-mint cap:** keeps the giveaway bounded - even if `$CLAWD` whales sybil 10k wallets, only 2k free tokens leave the pool.
+- **No allowlist contract:** `$CLAWD` balance _is_ the allowlist - measured at mint time, not snapshot.
+- **`_safeMint` in a loop:** OZ v5 ERC-721 + `nonReentrant` guard. The `Minted` event fires after all mints to keep the storage delta atomic.
 
-## Requirements
+## Run locally
 
-Before you begin, you need to install the following tools:
-
-- [Node (>= v20.18.3)](https://nodejs.org/en/download/)
-- Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
-- [Git](https://git-scm.com/downloads)
-
-## Quickstart
-
-To get started with Scaffold-ETH 2, follow the steps below:
-
-1. Install dependencies if it was skipped in CLI:
-
-```
-cd my-dapp-example
+```bash
 yarn install
+yarn chain                 # local anvil
+yarn deploy                # deploys AiPunks to local
+yarn start                 # frontend at http://localhost:3000
 ```
 
-2. Run a local network in the first terminal:
+For a static IPFS-ready build:
 
-```
-yarn chain
-```
-
-This command starts a local Ethereum network using Foundry. The network runs on your local machine and can be used for testing and development. You can customize the network configuration in `packages/foundry/foundry.toml`.
-
-3. On a second terminal, deploy the test contract:
-
-```
-yarn deploy
+```bash
+cd packages/nextjs
+NEXT_PUBLIC_IPFS_BUILD=true \
+  NODE_OPTIONS="--require ./polyfill-localstorage.cjs" \
+  yarn build
+# output: packages/nextjs/out/
 ```
 
-This command deploys a test smart contract to the local network. The contract is located in `packages/foundry/contracts` and can be modified to suit your needs. The `yarn deploy` command uses the deploy script located in `packages/foundry/script` to deploy the contract to the network. You can also customize the deploy script.
+## Project layout
 
-4. On a third terminal, start your NextJS app:
+- `packages/foundry/` - Solidity, Foundry deploy scripts, audit artifacts under `audits/`.
+- `packages/nextjs/` - Next.js App Router frontend (RainbowKit + Wagmi + Viem).
+- `packages/nextjs/contracts/deployedContracts.ts` - auto-generated ABI + address.
+- `packages/nextjs/contracts/externalContracts.ts` - `$CLAWD` ERC-20 on Base (read-only).
 
-```
-yarn start
-```
+## Built for
 
-Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
-
-Run smart contract test with `yarn foundry:test`
-
-- Edit your smart contracts in `packages/foundry/contracts`
-- Edit your frontend homepage at `packages/nextjs/app/page.tsx`. For guidance on [routing](https://nextjs.org/docs/app/building-your-application/routing/defining-routes) and configuring [pages/layouts](https://nextjs.org/docs/app/building-your-application/routing/pages-and-layouts) checkout the Next.js documentation.
-- Edit your deployment scripts in `packages/foundry/script`
-
-
-## Documentation
-
-Visit our [docs](https://docs.scaffoldeth.io) to learn how to start building with Scaffold-ETH 2.
-
-To know more about its features, check out our [website](https://scaffoldeth.io).
-
-## Contributing to Scaffold-ETH 2
-
-We welcome contributions to Scaffold-ETH 2!
-
-Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
+[LeftClaw Job #83](https://leftclaw.services). Worker: `clawdbotatg`.

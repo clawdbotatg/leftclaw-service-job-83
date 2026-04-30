@@ -7,6 +7,9 @@
 @theme {
   --shadow-center: 0 0 12px -2px rgb(0 0 0 / 0.05);
   --animate-pulse-fast: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --color-ap-glow: #00ff9d;
+  --font-pixel:
+    "VT323", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @plugin "daisyui" {
@@ -18,50 +21,50 @@
 @plugin "daisyui/theme" {
   name: "light";
 
-  --color-primary: #93bbfb;
-  --color-primary-content: #212638;
-  --color-secondary: #dae8ff;
-  --color-secondary-content: #212638;
-  --color-accent: #93bbfb;
-  --color-accent-content: #212638;
-  --color-neutral: #212638;
-  --color-neutral-content: #ffffff;
+  --color-primary: #00b87a;
+  --color-primary-content: #04140d;
+  --color-secondary: #d6ffe8;
+  --color-secondary-content: #04140d;
+  --color-accent: #00ff9d;
+  --color-accent-content: #04140d;
+  --color-neutral: #04140d;
+  --color-neutral-content: #f5fff8;
   --color-base-100: #ffffff;
-  --color-base-200: #f4f8ff;
-  --color-base-300: #dae8ff;
-  --color-base-content: #212638;
-  --color-info: #93bbfb;
+  --color-base-200: #f5fff8;
+  --color-base-300: #dafff0;
+  --color-base-content: #04140d;
+  --color-info: #00b87a;
   --color-success: #34eeb6;
   --color-warning: #ffcf72;
-  --color-error: #ff8863;
+  --color-error: #ff5c5c;
 
-  --radius-field: 1rem;
-  --radius-box: 1rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
   --tt-tailw: 6px;
 }
 
 @plugin "daisyui/theme" {
   name: "dark";
 
-  --color-primary: #212638;
-  --color-primary-content: #f9fbff;
-  --color-secondary: #323f61;
-  --color-secondary-content: #f9fbff;
-  --color-accent: #4969a6;
-  --color-accent-content: #f9fbff;
-  --color-neutral: #f9fbff;
-  --color-neutral-content: #385183;
-  --color-base-100: #385183;
-  --color-base-200: #2a3655;
-  --color-base-300: #212638;
-  --color-base-content: #f9fbff;
-  --color-info: #385183;
+  --color-primary: #00ff9d;
+  --color-primary-content: #04140d;
+  --color-secondary: #14422f;
+  --color-secondary-content: #d6ffe8;
+  --color-accent: #00ff9d;
+  --color-accent-content: #04140d;
+  --color-neutral: #d6ffe8;
+  --color-neutral-content: #04140d;
+  --color-base-100: #0a0f0d;
+  --color-base-200: #060a08;
+  --color-base-300: #131a16;
+  --color-base-content: #e8fff3;
+  --color-info: #00ff9d;
   --color-success: #34eeb6;
   --color-warning: #ffcf72;
-  --color-error: #ff8863;
+  --color-error: #ff5c5c;
 
-  --radius-field: 1rem;
-  --radius-box: 1rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
 
   --tt-tailw: 6px;
   --tt-bg: var(--color-primary);
@@ -108,7 +111,7 @@
 
 .btn {
   @apply shadow-md;
-  border-radius: 9999rem;
+  border-radius: 0.5rem;
 }
 
 .btn.btn-ghost {
@@ -122,4 +125,43 @@
 .link:hover {
   opacity: 80%;
 }
-  
+
+/* --- Ai Punks accents --- */
+.ap-glow {
+  color: var(--color-ap-glow);
+  text-shadow: 0 0 12px rgba(0, 255, 157, 0.55);
+}
+
+.ap-pixel {
+  font-family: var(--font-pixel);
+  letter-spacing: 0.04em;
+}
+
+.ap-card {
+  border: 1px solid rgba(0, 255, 157, 0.25);
+  background: linear-gradient(
+    180deg,
+    rgba(0, 255, 157, 0.04) 0%,
+    rgba(0, 255, 157, 0) 100%
+  );
+}
+
+.ap-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 255, 157, 0.4) 50%,
+    transparent 100%
+  );
+}
+
+.ap-scanline {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(0, 255, 157, 0.04) 0px,
+    rgba(0, 255, 157, 0.04) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}

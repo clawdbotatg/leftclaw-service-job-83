@@ -1,5 +1,8 @@
 {
-  name: 'Scaffold-ETH 2 DApp',
-  description: 'A DApp built with Scaffold-ETH',
-  iconPath: 'logo.svg'
+  "name": "Ai Punks",
+  "short_name": "Ai Punks",
+  "description": "10,000 AI-enhanced CryptoPunks on Base. Powered by $CLAWD.",
+  "icons": [
+    { "src": "/favicon.png", "sizes": "64x64", "type": "image/png" }
+  ]
 }
