@@ -15,7 +15,7 @@ const pixelFont = VT323({
 
 export const metadata = getMetadata({
   title: "Ai Punks",
-  description: "Ai Punks — 10,000 AI-enhanced CryptoPunks on Base. $CLAWD-gated free mints, 0.005 ETH otherwise.",
+  description: "Ai Punks — 10,000 AI-enhanced CryptoPunks on Base. $CLAWD-gated free mints, 0.069 ETH otherwise.",
 });
 
 const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {

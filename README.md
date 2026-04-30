@@ -10,8 +10,8 @@
 ## Mint mechanics
 
 - **Supply:** 10,000.
-- **Mint price:** 0.005 ETH per token.
-- **`$CLAWD`-gated free mints:** the first 2,000 mints are free for wallets holding **≥ $50 worth** of `$CLAWD` (token: [`0x9f86dB9fc6f7c9408e8Fda3Ff8ce4e78ac7a6b07`](https://basescan.org/address/0x9f86dB9fc6f7c9408e8Fda3Ff8ce4e78ac7a6b07)). One free mint per wallet, capped at a 2,000 global pool. The owner publishes the `$CLAWD/USD` price on-chain via `setClawdUsdPrice` (capped at `$1` per `$CLAWD` to bound spend). Free mints are claimed first when a wallet calls `mint(qty)` — `paid = qty - free`. No approvals required: it is pure ETH.
+- **Mint price:** 0.069 ETH per token.
+- **`$CLAWD`-gated free mints:** the first 2,000 mints are free for wallets holding **≥ $1,000 USD worth** of `$CLAWD` per free mint (token: [`0x9f86dB9fc6f7c9408e8Fda3Ff8ce4e78ac7a6b07`](https://basescan.org/address/0x9f86dB9fc6f7c9408e8Fda3Ff8ce4e78ac7a6b07)). Up to **20 free mints per wallet**, capped at a 2,000 global pool. The owner publishes the `$CLAWD/USD` price on-chain via `setClawdUsdPrice` (capped at `$1` per `$CLAWD` to bound spend). Free mints are claimed first when a wallet calls `mint(qty)` — `paid = qty - free`. No approvals required: it is pure ETH.
 - **Royalties:** ERC-2981, 5% to the owner (cap 10%).
 - **Reentrancy:** `mint` and `withdraw` are guarded; refunds use `call` with explicit failure reverts.
 

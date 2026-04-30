@@ -129,16 +129,8 @@ const Home: NextPage = () => {
           },
         },
       );
-      // mobile deep-link nudge: poke the wallet UI back to foreground after submit
-      if (typeof window !== "undefined") {
-        setTimeout(() => {
-          try {
-            window.focus();
-          } catch {
-            // ignore
-          }
-        }, 2000);
-      }
+      // Mobile users: RainbowKit + WalletConnect handle the wallet-app deep-link automatically.
+      // Approve the transaction in your wallet app, then return to the dApp tab. No manual nudge required.
     } catch (err) {
       console.error(err);
     }
@@ -295,8 +287,8 @@ const Home: NextPage = () => {
               </button>
 
               <p className="text-xs text-base-content/50 mt-3 text-center m-0">
-                Free mints are claimed first. Holding ≥ $50 of $CLAWD gets 1 free mint (max 1 per wallet, 2,000 global
-                cap).
+                Free mints are claimed first. Each $1,000 USD of $CLAWD held grants 1 free mint (up to 20 free mints per
+                wallet, 2,000 global cap).
               </p>
             </>
           )}
