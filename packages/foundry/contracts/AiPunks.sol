@@ -31,10 +31,20 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
  *                          1e18 scaled USD-per-token, both divided out)
  *        eligibleFree   = min(20, usdValue / 1000)
  *        remaining      = eligibleFree - usedFreeMints[msg.sender]   (>= 0)
- *        freeUsed       = min(quantity, remaining)
+ *        freeUsed       = min(quantity, remaining,
+ *                              MAX_FREE_MINTS - totalFreeMintsUsed)
  *        paidQty        = quantity - freeUsed
  *        require msg.value >= paidQty * mintPrice
  *        any excess ETH is refunded to msg.sender
+ *
+ *      Sybil disclosure (M-2):
+ *        The 20 per-wallet free-mint cap is enforced but is NOT
+ *        Sybil-resistant — a CLAWD holder can transfer the same balance
+ *        between fresh wallets to claim 20 free mints from each. To bound
+ *        the worst case, this contract additionally enforces a global
+ *        free-mint supply cap, `MAX_FREE_MINTS` (20% of supply by default).
+ *        Once that cap is reached, all subsequent mints are paid mints
+ *        regardless of CLAWD balance.
  */
 contract AiPunks is ERC721, ERC2981, Ownable, ReentrancyGuard {
     using Strings for uint256;
@@ -49,6 +59,10 @@ contract AiPunks is ERC721, ERC2981, Ownable, ReentrancyGuard {
     /// @notice Max free mints any single wallet can ever claim.
     uint256 public constant MAX_FREE_PER_WALLET = 20;
 
+    /// @notice Global cap on free mints across all wallets (20% of MAX_SUPPLY).
+    ///         Bounds the Sybil bypass of the per-wallet cap (see contract NatSpec, M-2).
+    uint256 public constant MAX_FREE_MINTS = 2_000;
+
     /// @notice USD threshold (no decimals) per free mint — $1,000 of $CLAWD
     ///         gets you one free mint, $2,000 gets two, etc., up to 20.
     uint256 public constant USD_PER_FREE_MINT = 1_000;
@@ -58,6 +72,17 @@ contract AiPunks is ERC721, ERC2981, Ownable, ReentrancyGuard {
 
     /// @notice Royalty BPS (5%).
     uint96 public constant ROYALTY_BPS = 500;
+
+    /// @notice Hard ceiling on `clawdUsdPrice` — 1 USD per whole CLAWD (1e18-scaled).
+    ///         Prevents owner fat-fingers / overflows in `freeMintsEligible` (M-3 / L-1).
+    uint256 public constant MAX_CLAWD_USD_PRICE = 1e18;
+
+    /// @notice Per-tx cap on `quantity` for `mint()` — prevents accidental
+    ///         block-gas-limit reverts and makes the limit explicit to the dApp (L-2).
+    uint256 public constant MAX_BATCH = 50;
+
+    /// @notice Hard ceiling on royalty BPS — 10% (1000 / 10000) (L-4).
+    uint96 public constant MAX_ROYALTY_BPS = 1_000;
 
     // ------------------------------------------------------------------ //
     // State                                                              //
@@ -73,6 +98,9 @@ contract AiPunks is ERC721, ERC2981, Ownable, ReentrancyGuard {
     /// @notice Running token-id counter — also the number of tokens minted.
     uint256 public totalMinted;
 
+    /// @notice Total free mints consumed across all wallets. Capped by MAX_FREE_MINTS.
+    uint256 public totalFreeMintsUsed;
+
     /// @notice Free mints already consumed per wallet.
     mapping(address => uint256) public usedFreeMints;
 
@@ -87,6 +115,7 @@ contract AiPunks is ERC721, ERC2981, Ownable, ReentrancyGuard {
     event BaseURIUpdated(string newURI);
     event MintPriceUpdated(uint256 newPrice);
     event ClawdUsdPriceUpdated(uint256 newPrice);
+    event RoyaltyUpdated(address indexed receiver, uint96 feeNumerator);
 
     // ------------------------------------------------------------------ //
     // Errors                                                             //
@@ -97,6 +126,10 @@ contract AiPunks is ERC721, ERC2981, Ownable, ReentrancyGuard {
     error Underpaid(uint256 required, uint256 sent);
     error RefundFailed();
     error WithdrawFailed();
+    error BatchTooLarge();
+    error PriceTooHigh();
+    error RoyaltyTooHigh();
+    error ZeroAddress();
 
     // ------------------------------------------------------------------ //
     // Constructor                                                        //
@@ -120,15 +153,22 @@ contract AiPunks is ERC721, ERC2981, Ownable, ReentrancyGuard {
      * @notice Mint `quantity` tokens to `msg.sender`. Free mints (if any) are
      *         applied first, then any remaining tokens cost `mintPrice` each.
      *         Excess ETH is refunded.
+     * @dev    Free mints are clamped by both per-wallet (`MAX_FREE_PER_WALLET`)
+     *         and global (`MAX_FREE_MINTS`) caps. Once `totalFreeMintsUsed`
+     *         reaches `MAX_FREE_MINTS`, all subsequent mints are paid mints.
+     *         Per-tx `quantity` is capped at `MAX_BATCH` to keep gas bounded.
      */
     function mint(uint256 quantity) external payable nonReentrant {
         if (quantity == 0) revert ZeroQuantity();
+        if (quantity > MAX_BATCH) revert BatchTooLarge();
         if (totalMinted + quantity > MAX_SUPPLY) revert MaxSupplyExceeded();
 
-        // Free-mint accounting.
+        // Free-mint accounting (per-wallet and global cap).
         uint256 eligible = freeMintsEligible(msg.sender);
         uint256 used = usedFreeMints[msg.sender];
-        uint256 remaining = eligible > used ? eligible - used : 0;
+        uint256 walletRemaining = eligible > used ? eligible - used : 0;
+        uint256 globalRemaining = MAX_FREE_MINTS - totalFreeMintsUsed; // bounded above by MAX_FREE_MINTS
+        uint256 remaining = walletRemaining < globalRemaining ? walletRemaining : globalRemaining;
         uint256 freeUsed = quantity < remaining ? quantity : remaining;
         uint256 paidQty = quantity - freeUsed;
         uint256 required = paidQty * mintPrice;
@@ -137,6 +177,7 @@ contract AiPunks is ERC721, ERC2981, Ownable, ReentrancyGuard {
 
         if (freeUsed > 0) {
             usedFreeMints[msg.sender] = used + freeUsed;
+            totalFreeMintsUsed += freeUsed;
         }
 
         // Effects: mint tokens, ids start at 1.
@@ -149,6 +190,8 @@ contract AiPunks is ERC721, ERC2981, Ownable, ReentrancyGuard {
         emit Minted(msg.sender, quantity, freeUsed, required);
 
         // Refund any excess (placed last to satisfy CEI; nonReentrant guards anyway).
+        // L-3 note: contract-receivers whose receive() reverts must send msg.value
+        // exactly equal to `required` — otherwise refund will revert RefundFailed.
         uint256 refund = msg.value - required;
         if (refund > 0) {
             (bool ok,) = payable(msg.sender).call{ value: refund }("");
@@ -164,6 +207,11 @@ contract AiPunks is ERC721, ERC2981, Ownable, ReentrancyGuard {
      * @notice How many free mints `account` is *ever* eligible for given
      *         their current $CLAWD balance and the current `clawdUsdPrice`.
      *         Capped at `MAX_FREE_PER_WALLET` (20).
+     * @dev    USD value truncates cents (intentional, I-4): a holder with
+     *         $999.99 of CLAWD gets 0 free mints, $1,000.00 gets 1, etc.
+     *         `clawdUsdPrice` is bounded by `MAX_CLAWD_USD_PRICE`, which keeps
+     *         `clawdBal * price` well below 2^256 for any plausible CLAWD
+     *         balance (CLAWD total supply is ~1e29, so worst case is ~1e47).
      */
     function freeMintsEligible(address account) public view returns (uint256) {
         uint256 price = clawdUsdPrice;
@@ -178,12 +226,24 @@ contract AiPunks is ERC721, ERC2981, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Free mints `account` can still claim right now (eligible minus used).
+     * @notice Free mints `account` can still claim right now (eligible minus
+     *         used, further clamped by global remaining).
      */
     function freeMintsRemaining(address account) external view returns (uint256) {
         uint256 eligible = freeMintsEligible(account);
         uint256 used = usedFreeMints[account];
-        return eligible > used ? eligible - used : 0;
+        uint256 walletRemaining = eligible > used ? eligible - used : 0;
+        uint256 globalRemaining = MAX_FREE_MINTS - totalFreeMintsUsed;
+        return walletRemaining < globalRemaining ? walletRemaining : globalRemaining;
+    }
+
+    /**
+     * @notice Total free mints still available across the whole collection
+     *         (`MAX_FREE_MINTS` - `totalFreeMintsUsed`). Surfaced for the dApp
+     *         so it can disable the free-mint UI when the global pool is empty.
+     */
+    function freeMintsRemainingGlobal() external view returns (uint256) {
+        return MAX_FREE_MINTS - totalFreeMintsUsed;
     }
 
     // ------------------------------------------------------------------ //
@@ -204,17 +264,38 @@ contract AiPunks is ERC721, ERC2981, Ownable, ReentrancyGuard {
      * @notice Set the USD price of $CLAWD, scaled to 1e18.
      *         e.g. for $0.001 USD-per-CLAWD pass `1e15`.
      *         Setting 0 disables free mints (default at deploy).
+     * @dev    Bounded by `MAX_CLAWD_USD_PRICE` (1 USD per whole CLAWD,
+     *         1e18-scaled). Anything above that is rejected — a community
+     *         token priced at $1.00 each is already absurd; this prevents
+     *         fat-finger / overflow scenarios in `freeMintsEligible` (M-3).
      */
     function setClawdUsdPrice(uint256 newPrice) external onlyOwner {
+        if (newPrice > MAX_CLAWD_USD_PRICE) revert PriceTooHigh();
         clawdUsdPrice = newPrice;
         emit ClawdUsdPriceUpdated(newPrice);
     }
 
+    /**
+     * @notice Update the ERC2981 default royalty.
+     * @dev    Capped at `MAX_ROYALTY_BPS` (10%) to keep the collection
+     *         compatible with major marketplaces (L-4). Reverts on
+     *         zero-address receiver.
+     */
     function setRoyalty(address receiver, uint96 feeNumerator) external onlyOwner {
+        if (receiver == address(0)) revert ZeroAddress();
+        if (feeNumerator > MAX_ROYALTY_BPS) revert RoyaltyTooHigh();
         _setDefaultRoyalty(receiver, feeNumerator);
+        emit RoyaltyUpdated(receiver, feeNumerator);
     }
 
-    /// @notice Withdraw the contract's ETH balance to the owner.
+    /**
+     * @notice Withdraw the contract's ETH balance to the current owner.
+     * @dev    Push-payment to `owner()` via low-level call. If `owner()` is
+     *         ever transferred to a contract that cannot receive ETH (no
+     *         payable `receive`/`fallback`), `withdraw()` will revert with
+     *         `WithdrawFailed` until the client `transferOwnership` to a
+     *         payable wallet again. Funds are never permanently lost (M-1).
+     */
     function withdraw() external onlyOwner nonReentrant {
         uint256 bal = address(this).balance;
         (bool ok,) = payable(owner()).call{ value: bal }("");
